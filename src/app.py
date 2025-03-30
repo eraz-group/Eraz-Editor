@@ -11,8 +11,9 @@ from PyQt6.QtWidgets import (
     QListWidget,
     QMessageBox,
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QFileSystemWatcher
 from PyQt6.QtGui import QAction, QKeySequence
+from PyQt6.QtWebEngineWidgets import QWebEngineView  # Import for HTML previewer
 
 class EditeurCode(QMainWindow):
     def __init__(self):
@@ -53,17 +54,16 @@ class EditeurCode(QMainWindow):
         sauvegarder_action.triggered.connect(self.sauvegarder_fichier)
         fichier_menu.addAction(sauvegarder_action)
 
-        annuler_action = QAction("Annuler", self)
-        annuler_action.setShortcut(QKeySequence("Ctrl+Z"))
-        annuler_action.triggered.connect(self.annuler_action)
-        fichier_menu.addAction(annuler_action)
-
-        refaire_action = QAction("Refaire", self)
-        refaire_action.setShortcut(QKeySequence("Ctrl+Y"))
-        refaire_action.triggered.connect(self.refaire_action)
-        fichier_menu.addAction(refaire_action)
+        afficher_html_action = QAction("Afficher HTML", self)
+        afficher_html_action.setShortcut(QKeySequence("Ctrl+H"))
+        afficher_html_action.triggered.connect(self.afficher_html)
+        fichier_menu.addAction(afficher_html_action)
 
         self.dossier_actuel = ""
+        self.file_watcher = QFileSystemWatcher()  # Initialize file watcher
+        self.file_watcher.fileChanged.connect(self.recharger_html)  # Connect to reload method
+
+        self.tab_file_paths = {}  # Dictionary to store file paths for each tab
 
         self.setStyleSheet("""
             QMainWindow { background-color: #2d2d30; }
@@ -96,15 +96,20 @@ class EditeurCode(QMainWindow):
 
     def sauvegarder_fichier(self):
         widget_actuel = self.tabs.currentWidget()
-        if widget_actuel:
-            index = self.tabs.currentIndex()
-            nom_fichier = self.tabs.tabText(index)
-            chemin = os.path.join(self.dossier_actuel, nom_fichier)
-            with open(chemin, 'w', encoding='utf-8') as fichier:
-                fichier.write(widget_actuel.toPlainText())
-            QMessageBox.information(self, "Sauvegarde", f"Le fichier {nom_fichier} a été sauvegardé avec succès !")
+        if widget_actuel and isinstance(widget_actuel, QTextEdit):
+            index = self.tabs.indexOf(widget_actuel)  # Get the current tab index
+            chemin = self.tab_file_paths.get(index)  # Retrieve the full file path for the current tab
+            if chemin:
+                try:
+                    with open(chemin, 'w', encoding='utf-8') as fichier:
+                        fichier.write(widget_actuel.toPlainText())
+                    QMessageBox.information(self, "Sauvegarde", f"Le fichier {chemin} a été sauvegardé avec succès !")
+                except Exception as e:
+                    QMessageBox.critical(self, "Erreur", f"Une erreur s'est produite lors de la sauvegarde : {e}")
+            else:
+                QMessageBox.warning(self, "Erreur", "Chemin du fichier introuvable. Assurez-vous que le fichier a été ouvert correctement.")
         else:
-            QMessageBox.warning(self, "Erreur", "Aucun fichier ouvert à sauvegarder.")
+            QMessageBox.warning(self, "Erreur", "Aucun fichier texte ouvert à sauvegarder.")
 
     def ajouter_onglet(self, chemin):
         with open(chemin, 'r', encoding='utf-8') as fichier:
@@ -112,18 +117,29 @@ class EditeurCode(QMainWindow):
             editeur = QTextEdit()
             editeur.setPlainText(contenu)
             nom_fichier = os.path.basename(chemin)
-            self.tabs.addTab(editeur, nom_fichier)
+            index = self.tabs.addTab(editeur, nom_fichier)
+            self.tab_file_paths[index] = chemin  # Store the full file path for the new tab
 
     def fermer_onglet(self, index):
+        if index in self.tab_file_paths:
+            del self.tab_file_paths[index]  # Remove the file path from the dictionary
         self.tabs.removeTab(index)
 
-    def annuler_action(self):
-        if self.tabs.currentWidget():
-            self.tabs.currentWidget().undo()
+    def afficher_html(self):
+        chemin, _ = QFileDialog.getOpenFileName(self, "Sélectionner un fichier HTML", "", "HTML (*.html)")
+        if chemin:
+            vue_html = QWebEngineView()
+            vue_html.setHtml(open(chemin, 'r', encoding='utf-8').read())
+            index = self.tabs.addTab(vue_html, f"Aperçu: {os.path.basename(chemin)}")
+            self.tabs.setCurrentWidget(vue_html)
+            self.file_watcher.addPath(chemin)  # Add file to watcher
 
-    def refaire_action(self):
-        if self.tabs.currentWidget():
-            self.tabs.currentWidget().redo()
+    def recharger_html(self, chemin):
+        for i in range(self.tabs.count()):
+            widget = self.tabs.widget(i)
+            if isinstance(widget, QWebEngineView):
+                widget.setHtml(open(chemin, 'r', encoding='utf-8').read())
+                break
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
