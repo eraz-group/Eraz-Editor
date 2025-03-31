@@ -12,7 +12,9 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QWidget,
     QPlainTextEdit,
-    QLineEdit
+    QLineEdit,
+    QTreeWidget,
+    QTreeWidgetItem
 )
 from PyQt6.QtCore import Qt, QFileSystemWatcher, QRect, QEvent
 from PyQt6.QtGui import QAction, QKeySequence, QPainter, QColor
@@ -73,6 +75,7 @@ class EditorWithLines(QPlainTextEdit):
         # Set the viewport margins to make space for the number bar
         self.setViewportMargins(self.number_bar.width(), 0, 0, 0)
 
+
 class EditeurCode(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -83,9 +86,11 @@ class EditeurCode(QMainWindow):
         self.setCentralWidget(self.splitter)
         self.splitter.setSizes([250, 950])
 
-        self.file_list = QListWidget()
-        self.file_list.itemDoubleClicked.connect(self.ouvrir_fichier_depuis_liste)
-        self.splitter.addWidget(self.file_list)
+        self.file_tree = QTreeWidget()
+        self.file_tree.setHeaderHidden(True)  # Hide the header for simplicity
+        self.file_tree.itemDoubleClicked.connect(self.ouvrir_fichier_depuis_arborescence)
+        self.file_tree.itemExpanded.connect(self.expand_folder)
+        self.splitter.addWidget(self.file_tree)
 
         self.tabs = QTabWidget()
         self.tabs.setTabsClosable(True)
@@ -125,7 +130,7 @@ class EditeurCode(QMainWindow):
 
         self.setStyleSheet("""
             QMainWindow { background-color: #2d2d30; }
-            QListWidget { background-color: #1e1e1e; color: #dcdcdc; }
+            QTreeWidget { background-color: #1e1e1e; color: #dcdcdc; }
             QTextEdit { background-color: #1e1e1e; color: #dcdcdc; font-family: Consolas; font-size: 14px; }
             QTabWidget::pane { border: 1px solid #444; }
             QTabBar::tab { background: #333; color: #dcdcdc; padding: 10px; }
@@ -142,7 +147,7 @@ class EditeurCode(QMainWindow):
 
         # Shortcut to activate the command bar
         self.command_shortcut = QAction(self)
-        self.command_shortcut.setShortcut(QKeySequence("Esc"))
+        self.command_shortcut.setShortcut(QKeySequence(":"))
         self.command_shortcut.triggered.connect(self.show_command_bar)
         self.addAction(self.command_shortcut)
 
@@ -153,7 +158,6 @@ class EditeurCode(QMainWindow):
             self.command_bar.setFocus()
         else:
             self.command_bar.hide()
-
 
     def execute_command(self):
         command = self.command_bar.text().strip()
@@ -178,16 +182,27 @@ class EditeurCode(QMainWindow):
         dossier = QFileDialog.getExistingDirectory(self, "Ouvrir un dossier", "")
         if dossier:
             self.dossier_actuel = dossier
-            self.file_list.clear()
-            for root, dirs, files in os.walk(dossier):
-                for nom in files:
-                    chemin_fichier = os.path.relpath(os.path.join(root, nom), dossier)
-                    self.file_list.addItem(chemin_fichier)
+            self.file_tree.clear()
+            self.add_items_to_tree(self.file_tree, dossier)
 
-    def ouvrir_fichier_depuis_liste(self, item):
-        chemin = os.path.join(self.dossier_actuel, item.text())
+    def add_items_to_tree(self, parent, path):
+        for nom in sorted(os.listdir(path)):
+            full_path = os.path.join(path, nom)
+            item = QTreeWidgetItem(parent, [nom])
+            item.setData(0, Qt.ItemDataRole.UserRole, full_path)  # Store the full path
+            if os.path.isdir(full_path):
+                item.setChildIndicatorPolicy(QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator)  # Mark as expandable
+
+    def expand_folder(self, item):
+        if item.childCount() == 0:  # Only load if not already loaded
+            path = item.data(0, Qt.ItemDataRole.UserRole)
+            if os.path.isdir(path):
+                self.add_items_to_tree(item, path)
+
+    def ouvrir_fichier_depuis_arborescence(self, item, column):
+        chemin = item.data(0, Qt.ItemDataRole.UserRole)  # Retrieve the full file path
         if os.path.isfile(chemin):
-            self.ajouter_onglet(chemin)
+            self.ajouter_onglet(chemin)  # Open the file in a new tab
 
     def sauvegarder_fichier(self):
         widget_actuel = self.tabs.currentWidget()
@@ -235,6 +250,7 @@ class EditeurCode(QMainWindow):
             if isinstance(widget, QWebEngineView):
                 widget.setHtml(open(chemin, 'r', encoding='utf-8').read())
                 break
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
