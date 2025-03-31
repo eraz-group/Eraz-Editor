@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QLineEdit
 )
 from PyQt6.QtCore import Qt, QDir, QRect
-from PyQt6.QtGui import QFileSystemModel, QAction, QKeySequence, QPainter, QColor, QTextCursor
+from PyQt6.QtGui import QFileSystemModel, QAction, QKeySequence, QPainter, QColor
 
 
 class NumberBar(QWidget):
@@ -182,20 +182,6 @@ class EditeurCode(QMainWindow):
             self.fermer_onglet(self.tabs.currentIndex())
         elif command == ":q":  # Close tab
             self.fermer_onglet(self.tabs.currentIndex())
-        elif command.startswith(":gt"):  # Go to line
-            try:
-                line_number = int(command[3:])
-                if line_number > 0:
-                    # Find the block corresponding to the line number (0-based index)
-                    block = current_editor.document().findBlockByNumber(line_number - 1)
-                    if block.isValid():
-                        cursor = current_editor.textCursor()
-                        cursor.setPosition(block.position())  # Move cursor to the start of the block
-                        current_editor.setTextCursor(cursor)
-                        current_editor.centerCursor()  # Center the cursor in the viewport
-            except ValueError:
-                QMessageBox.warning(self, "Erreur", "Numéro de ligne invalide.")
-
 
     def ouvrir_fichier(self):
         chemin, _ = QFileDialog.getOpenFileName(self, "Ouvrir un fichier", "")
