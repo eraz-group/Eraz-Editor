@@ -118,6 +118,11 @@ class EditeurCode(QMainWindow):
         ouvrir_dossier_action.triggered.connect(self.ouvrir_dossier)
         fichier_menu.addAction(ouvrir_dossier_action)
 
+        creer_fichier_action = QAction("Créer fichier", self)
+        creer_fichier_action.setShortcut(QKeySequence("Ctrl+N"))
+        creer_fichier_action.triggered.connect(self.creer_fichier)
+        fichier_menu.addAction(creer_fichier_action)
+
         sauvegarder_action = QAction("Sauvegarder fichier", self)
         sauvegarder_action.setShortcut(QKeySequence("Ctrl+S"))
         sauvegarder_action.triggered.connect(self.sauvegarder_fichier)
@@ -139,6 +144,16 @@ class EditeurCode(QMainWindow):
         chemin = self.file_model.filePath(index)
         if os.path.isfile(chemin):
             self.ajouter_onglet(chemin)
+
+    def creer_fichier(self):
+        chemin, _ = QFileDialog.getSaveFileName(self, "Créer un fichier", "", "Tous les fichiers (*)")
+        if chemin:
+            # Create an empty file
+            with open(chemin, 'w', encoding='utf-8') as f:
+                pass
+            # Open the new file in a tab
+            self.ajouter_onglet(chemin)
+            QMessageBox.information(self, "Fichier créé", f"Le fichier '{chemin}' a été créé avec succès.")
 
     def sauvegarder_fichier(self):
         editor = self.tabs.currentWidget()
