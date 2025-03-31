@@ -11,9 +11,10 @@ from PyQt6.QtWidgets import (
     QListWidget,
     QMessageBox,
     QWidget,
-    QPlainTextEdit
+    QPlainTextEdit,
+    QLineEdit
 )
-from PyQt6.QtCore import Qt, QFileSystemWatcher, QRect
+from PyQt6.QtCore import Qt, QFileSystemWatcher, QRect, QEvent
 from PyQt6.QtGui import QAction, QKeySequence, QPainter, QColor
 from PyQt6.QtWebEngineWidgets import QWebEngineView  # Import for HTML previewer
 
@@ -130,6 +131,43 @@ class EditeurCode(QMainWindow):
             QTabBar::tab { background: #333; color: #dcdcdc; padding: 10px; }
             QTabBar::tab:selected { background: #007acc; color: #ffffff; }
         """)
+
+        # Initialize the command bar
+        self.command_bar = QLineEdit(self)
+        self.command_bar.setPlaceholderText("Enter command (e.g., :wq)")
+        self.command_bar.setStyleSheet("background-color: #1e1e1e; color: #dcdcdc; font-family: Consolas; font-size: 14px; padding: 5px;")
+        self.command_bar.hide()  # Hide the command bar initially
+        self.command_bar.returnPressed.connect(self.execute_command)  # Connect to command execution
+        self.command_bar.installEventFilter(self)  # Install event filter to handle Esc key
+
+        # Shortcut to activate the command bar
+        self.command_shortcut = QAction(self)
+        self.command_shortcut.setShortcut(QKeySequence("Esc"))
+        self.command_shortcut.triggered.connect(self.show_command_bar)
+        self.addAction(self.command_shortcut)
+
+    def show_command_bar(self):
+        if not self.command_bar.isVisible():
+            self.command_bar.setGeometry(0, self.height() - 30, self.width(), 30)  # Position at the bottom
+            self.command_bar.show()
+            self.command_bar.setFocus()
+        else:
+            self.command_bar.hide()
+
+
+    def execute_command(self):
+        command = self.command_bar.text().strip()
+        if command == ":wq":
+            self.sauvegarder_fichier()  # Save the current file
+            self.close()  # Quit the application
+        elif command == ":q":
+            self.close()  # Quit the application without saving
+        elif command == ":w":
+            self.sauvegarder_fichier()  # Save the current file
+        else:
+            QMessageBox.warning(self, "Commande inconnue", f"Commande non reconnue: {command}")
+        self.command_bar.clear()
+        self.command_bar.hide()
 
     def ouvrir_fichier(self):
         chemin, _ = QFileDialog.getOpenFileName(self, "Ouvrir un fichier", "", "Tous les fichiers (*);;Python (*.py);;HTML (*.html)")
