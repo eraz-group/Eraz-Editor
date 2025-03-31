@@ -1,3 +1,4 @@
+# lint disable E501
 import sys
 import os
 from PyQt6.QtWidgets import (
@@ -11,10 +12,12 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
     QTreeView,
-    QLineEdit
+    QLineEdit,
+    QTextEdit
 )
 from PyQt6.QtCore import Qt, QDir, QRect
-from PyQt6.QtGui import QFileSystemModel, QAction, QKeySequence, QPainter, QColor, QTextCursor
+from PyQt6.QtGui import QFileSystemModel, QAction, QKeySequence, QPainter, QColor
+import subprocess
 
 
 class NumberBar(QWidget):
@@ -70,6 +73,9 @@ class EditorWithLines(QPlainTextEdit):
         self.command_input.hide()  # Initially hidden
         self.command_input.returnPressed.connect(self.execute_command_from_input)
 
+        # Property to store the file extension
+        self.file_extension = None
+
     def resizeEvent(self, event):
         super().resizeEvent(event)
         cr = self.contentsRect()
@@ -103,6 +109,14 @@ class EditorWithLines(QPlainTextEdit):
         self.command_input.hide()
         self.command_mode = False
         self.editor_code.execute_command(command)  # Use the reference to call execute_command
+
+    def set_file_extension(self, extension):
+        """Set the file extension for the current editor."""
+        self.file_extension = extension
+
+    def get_file_extension(self):
+        """Get the file extension for the current editor."""
+        return self.file_extension
 
 
 class EditeurCode(QMainWindow):
@@ -165,6 +179,8 @@ class EditeurCode(QMainWindow):
 
         self.dossier_actuel = ""
 
+        self.tab_data = {}
+
     def execute_command(self, command):
         current_editor = self.tabs.currentWidget()
         if not isinstance(current_editor, EditorWithLines):
@@ -195,7 +211,59 @@ class EditeurCode(QMainWindow):
                         current_editor.centerCursor()  # Center the cursor in the viewport
             except ValueError:
                 QMessageBox.warning(self, "Erreur", "Numéro de ligne invalide.")
+        elif command == ":lint":  # Lint with flake8 command
+            if self.get_current_file_extension() == ".py":
+                output = self.run_flake8(self.get_current_file_name())  # Get flake8 output
 
+                msg_box = QMessageBox(self)
+                msg_box.setWindowTitle("Résultats")
+                msg_box.setIcon(QMessageBox.Icon.Information)
+
+                # Create a scrollable text area
+                text_edit = QTextEdit()
+                text_edit.setPlainText(output)
+                text_edit.setReadOnly(True)
+                text_edit.setMinimumSize(600, 400)  # Set a reasonable size
+
+                # Add the text area to the message box
+                msg_box.layout().addWidget(text_edit)
+                msg_box.exec()
+            else:
+                QMessageBox.warning(self, "Erreur", "Linting uniquement pris en charge pour les fichiers Python.")
+
+
+    def run_flake8(self, file_path):
+        """Run flake8 on the given file, excluding rules specified in #lint disable comments."""
+        # Read the file to check for lint disable comments
+        disabled_rules = set()
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.startswith("# lint disable"):
+                    # Extract the rule codes from the comment
+                    parts = line.strip().split()
+                    if len(parts) > 2:
+                        disabled_rules.update(parts[2:])  # Add rule codes to the set
+
+        # Prepare the flake8 command
+        flake8_command = ["flake8", file_path]
+        if disabled_rules:
+            # Add the --ignore option with the disabled rules
+            flake8_command.append(f"--ignore={','.join(disabled_rules)}")
+
+        # Run flake8
+        result = subprocess.run(
+            flake8_command,
+            capture_output=True,
+            text=True
+        )
+        return result.stdout
+    
+    def get_current_file_name(self):
+        """Get the full path of the currently active file."""
+        current_index = self.tabs.currentIndex()
+        if current_index != -1:  # Ensure a tab is open
+            return self.tab_data.get(current_index)  # Get the full path from the dictionary
+        return None
 
     def ouvrir_fichier(self):
         chemin, _ = QFileDialog.getOpenFileName(self, "Ouvrir un fichier", "")
@@ -221,22 +289,42 @@ class EditeurCode(QMainWindow):
             # Open the new file in a tab
             self.ajouter_onglet(chemin)
             QMessageBox.information(self, "Fichier créé", f"Le fichier '{chemin}' a été créé avec succès.")
+    
+    def get_current_file_extension(self):
+        """Get the file extension of the currently active file."""
+        current_editor = self.tabs.currentWidget()
+        if isinstance(current_editor, EditorWithLines):
+            return current_editor.get_file_extension()
+        return None
 
     def sauvegarder_fichier(self):
-        editor = self.tabs.currentWidget()
-        if editor:
-            chemin = os.path.join(self.dossier_actuel, self.tabs.tabText(self.tabs.currentIndex()))
-            with open(chemin, 'w', encoding='utf-8') as f:
-                f.write(editor.toPlainText())
-            QMessageBox.information(self, "Sauvegarde", "Fichier sauvegardé")
+        """Save the currently active file."""
+        current_index = self.tabs.currentIndex()
+        if current_index != -1:  # Ensure a tab is open
+            chemin = self.tab_data.get(current_index)  # Get the full path from the dictionary
+            if chemin:
+                editor = self.tabs.currentWidget()
+                with open(chemin, 'w', encoding='utf-8') as f:
+                    f.write(editor.toPlainText())
+                QMessageBox.information(self, "Sauvegarde", f"Fichier sauvegardé : {chemin}")
+            else:
+                QMessageBox.warning(self, "Erreur", "Chemin du fichier introuvable.")
+        else:
+            QMessageBox.warning(self, "Erreur", "Aucun fichier ouvert.")
 
     def ajouter_onglet(self, chemin):
         editor = EditorWithLines(self, self)  # Pass self as both parent and editor_code
         with open(chemin, 'r', encoding='utf-8') as f:
             editor.setPlainText(f.read())
-        self.tabs.addTab(editor, os.path.basename(chemin))
+        # Extract and set the file extension
+        file_extension = os.path.splitext(chemin)[1]  # Get the file extension
+        editor.set_file_extension(file_extension)
+        tab_index = self.tabs.addTab(editor, os.path.basename(chemin))
+        self.tab_data[tab_index] = chemin  # Store the full path in the dictionary
 
     def fermer_onglet(self, index):
+        if index in self.tab_data:
+            del self.tab_data[index]  # Remove the tab data
         self.tabs.removeTab(index)
 
 
