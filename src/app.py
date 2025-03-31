@@ -10,7 +10,8 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QVBoxLayout,
     QWidget,
-    QTreeView
+    QTreeView,
+    QLineEdit
 )
 from PyQt6.QtCore import Qt, QDir, QRect
 from PyQt6.QtGui import QFileSystemModel, QAction, QKeySequence, QPainter, QColor
@@ -59,6 +60,14 @@ class EditorWithLines(QPlainTextEdit):
         self.number_bar = NumberBar(self)
         self.setStyleSheet("background-color: #1e1e1e; color: #dcdcdc; font-family: Consolas; font-size: 14px; ")
         self.update_margins()
+        self.command_mode = False
+
+        # Add a QLineEdit for command input
+        self.command_input = QLineEdit(self)
+        self.command_input.setPlaceholderText("Enter command")
+        self.command_input.setStyleSheet("background-color: #252526; color: #dcdcdc; border: none; padding: 5px;")
+        self.command_input.hide()  # Initially hidden
+        self.command_input.returnPressed.connect(self.execute_command_from_input)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -66,8 +75,63 @@ class EditorWithLines(QPlainTextEdit):
         self.number_bar.setGeometry(QRect(cr.left(), cr.top(), self.number_bar.width(), cr.height()))
         self.update_margins()
 
+        # Position the command input at the bottom of the editor
+        self.command_input.setGeometry(0, self.height() - 30, self.width(), 30)
+
     def update_margins(self):
         self.setViewportMargins(self.number_bar.width(), 0, 0, 0)
+
+    def keyPressEvent(self, event):
+        if self.command_mode:
+            if event.key() == Qt.Key.Key_Escape:  # Exit command mode
+                self.command_mode = False
+                self.command_input.hide()
+            else:
+                super().keyPressEvent(event)
+        else:
+            if event.key() == Qt.Key.Key_Escape:  # Enter command mode
+                self.command_mode = True
+                self.command_input.show()
+                self.command_input.setFocus()
+            else:
+                super().keyPressEvent(event)
+
+    def execute_command_from_input(self):
+        command = self.command_input.text()
+        self.command_input.clear()
+        self.command_input.hide()
+        self.command_mode = False
+        self.execute_command(command)
+
+    def execute_command(self, command):
+        if command == ":dd":  # Delete current line
+            cursor = self.textCursor()
+            cursor.select(cursor.SelectionType.BlockUnderCursor)
+            cursor.removeSelectedText()
+            cursor.deleteChar()
+        elif command == ":w":  # Save file
+            self.save_file()
+        elif command == ":wq":  # Save and close
+            self.save_file()
+            self.close_tab()
+        elif command == ":q":  # Close tab
+            self.close_tab()
+
+    def save_file(self):
+        parent = self.parentWidget()
+        if parent and isinstance(parent, QTabWidget):
+            index = parent.indexOf(self)
+            if index != -1:
+                file_path = parent.tabText(index)
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(self.toPlainText())
+
+    def close_tab(self):
+        parent = self.parentWidget()
+        if parent and isinstance(parent, QTabWidget):
+            index = parent.indexOf(self)
+            if index != -1:
+                parent.removeTab(index)
 
 
 class EditeurCode(QMainWindow):
