@@ -10,10 +10,67 @@ from PyQt6.QtWidgets import (
     QSplitter,
     QListWidget,
     QMessageBox,
+    QWidget,
+    QPlainTextEdit
 )
-from PyQt6.QtCore import Qt, QFileSystemWatcher
-from PyQt6.QtGui import QAction, QKeySequence
+from PyQt6.QtCore import Qt, QFileSystemWatcher, QRect
+from PyQt6.QtGui import QAction, QKeySequence, QPainter, QColor
 from PyQt6.QtWebEngineWidgets import QWebEngineView  # Import for HTML previewer
+
+
+class NumberBar(QWidget):
+    def __init__(self, editor):
+        super().__init__(editor)
+        self.editor = editor
+        self.editor.blockCountChanged.connect(self.updateWidth)
+        self.editor.updateRequest.connect(self.updateContents)
+        self.updateWidth()
+
+    def updateWidth(self):
+        width = self.fontMetrics().horizontalAdvance(str(self.editor.blockCount())) + 20
+        if self.width() != width:
+            self.setFixedWidth(width)
+
+    def updateContents(self, rect, dy):
+        if dy:
+            self.scroll(0, dy)
+        else:
+            self.update(0, rect.y(), self.width(), rect.height())
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.fillRect(event.rect(), QColor("#2d2d30"))
+        block = self.editor.firstVisibleBlock()
+        blockNumber = block.blockNumber()
+        top = self.editor.blockBoundingGeometry(block).translated(self.editor.contentOffset()).top()
+        bottom = top + self.editor.blockBoundingRect(block).height()
+
+        while block.isValid() and top <= event.rect().bottom():
+            if block.isVisible() and bottom >= event.rect().top():
+                painter.setPen(QColor("#858585"))
+                painter.drawText(0, int(top), self.width() - 10, self.fontMetrics().height(), Qt.AlignmentFlag.AlignRight, str(blockNumber + 1))
+            block = block.next()
+            top = bottom
+            bottom = top + self.editor.blockBoundingRect(block).height()
+            blockNumber += 1
+
+
+class EditorWithLines(QPlainTextEdit):
+    def __init__(self):
+        super().__init__()
+        self.number_bar = NumberBar(self)
+        self.setStyleSheet("background-color: #1e1e1e; color: #dcdcdc; font-family: Consolas; font-size: 14px; ")
+        self.update_margins()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        cr = self.contentsRect()
+        self.number_bar.setGeometry(QRect(cr.left(), cr.top(), self.number_bar.width(), cr.height()))
+        self.update_margins()
+
+    def update_margins(self):
+        # Set the viewport margins to make space for the number bar
+        self.setViewportMargins(self.number_bar.width(), 0, 0, 0)
 
 class EditeurCode(QMainWindow):
     def __init__(self):
@@ -114,7 +171,7 @@ class EditeurCode(QMainWindow):
     def ajouter_onglet(self, chemin):
         with open(chemin, 'r', encoding='utf-8') as fichier:
             contenu = fichier.read()
-            editeur = QTextEdit()
+            editeur = EditorWithLines()  # Use EditorWithLines instead of QTextEdit
             editeur.setPlainText(contenu)
             nom_fichier = os.path.basename(chemin)
             index = self.tabs.addTab(editeur, nom_fichier)
