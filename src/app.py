@@ -4,21 +4,16 @@ from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
     QFileDialog,
-    QTextEdit,
-    QMenuBar,
+    QPlainTextEdit,
     QTabWidget,
     QSplitter,
-    QListWidget,
     QMessageBox,
+    QVBoxLayout,
     QWidget,
-    QPlainTextEdit,
-    QLineEdit,
-    QTreeWidget,
-    QTreeWidgetItem
+    QTreeView
 )
-from PyQt6.QtCore import Qt, QFileSystemWatcher, QRect, QEvent
-from PyQt6.QtGui import QAction, QKeySequence, QPainter, QColor
-from PyQt6.QtWebEngineWidgets import QWebEngineView  # Import for HTML previewer
+from PyQt6.QtCore import Qt, QDir, QRect
+from PyQt6.QtGui import QFileSystemModel, QAction, QKeySequence, QPainter, QColor
 
 
 class NumberBar(QWidget):
@@ -72,35 +67,46 @@ class EditorWithLines(QPlainTextEdit):
         self.update_margins()
 
     def update_margins(self):
-        # Set the viewport margins to make space for the number bar
         self.setViewportMargins(self.number_bar.width(), 0, 0, 0)
 
 
 class EditeurCode(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Eraz Editor Professionnal")
-        self.setGeometry(100, 100, 1200, 800)
+        self.setWindowTitle("Eraz Editor Professional")
+        self.setGeometry(100, 100, 1400, 900)
+
+        self.setStyleSheet("background-color: #2d2d30; color: #dcdcdc;")
 
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.setCentralWidget(self.splitter)
-        self.splitter.setSizes([250, 950])
+        self.splitter.setSizes([250, 1150])
 
-        self.file_tree = QTreeWidget()
-        self.file_tree.setHeaderHidden(True)  # Hide the header for simplicity
-        self.file_tree.itemDoubleClicked.connect(self.ouvrir_fichier_depuis_arborescence)
-        self.file_tree.itemExpanded.connect(self.expand_folder)
-        self.splitter.addWidget(self.file_tree)
+        # File explorer using QTreeView and QFileSystemModel
+        self.file_model = QFileSystemModel()
+        self.file_model.setRootPath("")  # Set the root path to the file system
+        self.file_model.setFilter(QDir.Filter.AllEntries | QDir.Filter.NoDotAndDotDot)
+
+        self.file_explorer = QTreeView()
+        self.file_explorer.setModel(self.file_model)
+        self.file_explorer.setRootIndex(self.file_model.index(""))  # Set the initial directory
+        self.file_explorer.setStyleSheet("background-color: #252526; color: #dcdcdc;")
+        self.file_explorer.doubleClicked.connect(self.ouvrir_fichier_depuis_explorateur)
+        self.splitter.addWidget(self.file_explorer)
+
+        right_widget = QWidget()
+        right_layout = QVBoxLayout()
 
         self.tabs = QTabWidget()
         self.tabs.setTabsClosable(True)
         self.tabs.tabCloseRequested.connect(self.fermer_onglet)
-        self.splitter.addWidget(self.tabs)
+        right_layout.addWidget(self.tabs)
 
-        self.menu = QMenuBar()
-        self.setMenuBar(self.menu)
+        right_widget.setLayout(right_layout)
+        self.splitter.addWidget(right_widget)
 
-        fichier_menu = self.menu.addMenu("Fichier")
+        menu = self.menuBar()
+        fichier_menu = menu.addMenu("Fichier")
 
         ouvrir_action = QAction("Ouvrir fichier", self)
         ouvrir_action.setShortcut(QKeySequence("Ctrl+O"))
@@ -117,139 +123,39 @@ class EditeurCode(QMainWindow):
         sauvegarder_action.triggered.connect(self.sauvegarder_fichier)
         fichier_menu.addAction(sauvegarder_action)
 
-        afficher_html_action = QAction("Afficher HTML", self)
-        afficher_html_action.setShortcut(QKeySequence("Ctrl+H"))
-        afficher_html_action.triggered.connect(self.afficher_html)
-        fichier_menu.addAction(afficher_html_action)
-
         self.dossier_actuel = ""
-        self.file_watcher = QFileSystemWatcher()  # Initialize file watcher
-        self.file_watcher.fileChanged.connect(self.recharger_html)  # Connect to reload method
-
-        self.tab_file_paths = {}  # Dictionary to store file paths for each tab
-
-        self.setStyleSheet("""
-            QMainWindow { background-color: #2d2d30; }
-            QTreeWidget { background-color: #1e1e1e; color: #dcdcdc; }
-            QTextEdit { background-color: #1e1e1e; color: #dcdcdc; font-family: Consolas; font-size: 14px; }
-            QTabWidget::pane { border: 1px solid #444; }
-            QTabBar::tab { background: #333; color: #dcdcdc; padding: 10px; }
-            QTabBar::tab:selected { background: #007acc; color: #ffffff; }
-        """)
-
-        # Initialize the command bar
-        self.command_bar = QLineEdit(self)
-        self.command_bar.setPlaceholderText("Enter command (e.g., :wq)")
-        self.command_bar.setStyleSheet("background-color: #1e1e1e; color: #dcdcdc; font-family: Consolas; font-size: 14px; padding: 5px;")
-        self.command_bar.hide()  # Hide the command bar initially
-        self.command_bar.returnPressed.connect(self.execute_command)  # Connect to command execution
-        self.command_bar.installEventFilter(self)  # Install event filter to handle Esc key
-
-        # Shortcut to activate the command bar
-        self.command_shortcut = QAction(self)
-        self.command_shortcut.setShortcut(QKeySequence(":"))
-        self.command_shortcut.triggered.connect(self.show_command_bar)
-        self.addAction(self.command_shortcut)
-
-    def show_command_bar(self):
-        if not self.command_bar.isVisible():
-            self.command_bar.setGeometry(0, self.height() - 30, self.width(), 30)  # Position at the bottom
-            self.command_bar.show()
-            self.command_bar.setFocus()
-        else:
-            self.command_bar.hide()
-
-    def execute_command(self):
-        command = self.command_bar.text().strip()
-        if command == ":wq":
-            self.sauvegarder_fichier()  # Save the current file
-            self.close()  # Quit the application
-        elif command == ":q":
-            self.close()  # Quit the application without saving
-        elif command == ":w":
-            self.sauvegarder_fichier()  # Save the current file
-        else:
-            QMessageBox.warning(self, "Commande inconnue", f"Commande non reconnue: {command}")
-        self.command_bar.clear()
-        self.command_bar.hide()
 
     def ouvrir_fichier(self):
-        chemin, _ = QFileDialog.getOpenFileName(self, "Ouvrir un fichier", "", "Tous les fichiers (*);;Python (*.py);;HTML (*.html)")
+        chemin, _ = QFileDialog.getOpenFileName(self, "Ouvrir un fichier", "")
         if chemin:
             self.ajouter_onglet(chemin)
 
     def ouvrir_dossier(self):
         dossier = QFileDialog.getExistingDirectory(self, "Ouvrir un dossier", "")
         if dossier:
-            self.dossier_actuel = dossier
-            self.file_tree.clear()
-            self.add_items_to_tree(self.file_tree, dossier)
+            self.file_explorer.setRootIndex(self.file_model.index(dossier))
 
-    def add_items_to_tree(self, parent, path):
-        for nom in sorted(os.listdir(path)):
-            full_path = os.path.join(path, nom)
-            item = QTreeWidgetItem(parent, [nom])
-            item.setData(0, Qt.ItemDataRole.UserRole, full_path)  # Store the full path
-            if os.path.isdir(full_path):
-                item.setChildIndicatorPolicy(QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator)  # Mark as expandable
-
-    def expand_folder(self, item):
-        if item.childCount() == 0:  # Only load if not already loaded
-            path = item.data(0, Qt.ItemDataRole.UserRole)
-            if os.path.isdir(path):
-                self.add_items_to_tree(item, path)
-
-    def ouvrir_fichier_depuis_arborescence(self, item, column):
-        chemin = item.data(0, Qt.ItemDataRole.UserRole)  # Retrieve the full file path
+    def ouvrir_fichier_depuis_explorateur(self, index):
+        chemin = self.file_model.filePath(index)
         if os.path.isfile(chemin):
-            self.ajouter_onglet(chemin)  # Open the file in a new tab
+            self.ajouter_onglet(chemin)
 
     def sauvegarder_fichier(self):
-        widget_actuel = self.tabs.currentWidget()
-        if widget_actuel and isinstance(widget_actuel, QTextEdit):
-            index = self.tabs.indexOf(widget_actuel)  # Get the current tab index
-            chemin = self.tab_file_paths.get(index)  # Retrieve the full file path for the current tab
-            if chemin:
-                try:
-                    with open(chemin, 'w', encoding='utf-8') as fichier:
-                        fichier.write(widget_actuel.toPlainText())
-                    QMessageBox.information(self, "Sauvegarde", f"Le fichier {chemin} a été sauvegardé avec succès !")
-                except Exception as e:
-                    QMessageBox.critical(self, "Erreur", f"Une erreur s'est produite lors de la sauvegarde : {e}")
-            else:
-                QMessageBox.warning(self, "Erreur", "Chemin du fichier introuvable. Assurez-vous que le fichier a été ouvert correctement.")
-        else:
-            QMessageBox.warning(self, "Erreur", "Aucun fichier texte ouvert à sauvegarder.")
+        editor = self.tabs.currentWidget()
+        if editor:
+            chemin = os.path.join(self.dossier_actuel, self.tabs.tabText(self.tabs.currentIndex()))
+            with open(chemin, 'w', encoding='utf-8') as f:
+                f.write(editor.toPlainText())
+            QMessageBox.information(self, "Sauvegarde", "Fichier sauvegardé")
 
     def ajouter_onglet(self, chemin):
-        with open(chemin, 'r', encoding='utf-8') as fichier:
-            contenu = fichier.read()
-            editeur = EditorWithLines()  # Use EditorWithLines instead of QTextEdit
-            editeur.setPlainText(contenu)
-            nom_fichier = os.path.basename(chemin)
-            index = self.tabs.addTab(editeur, nom_fichier)
-            self.tab_file_paths[index] = chemin  # Store the full file path for the new tab
+        editor = EditorWithLines()
+        with open(chemin, 'r', encoding='utf-8') as f:
+            editor.setPlainText(f.read())
+        self.tabs.addTab(editor, os.path.basename(chemin))
 
     def fermer_onglet(self, index):
-        if index in self.tab_file_paths:
-            del self.tab_file_paths[index]  # Remove the file path from the dictionary
         self.tabs.removeTab(index)
-
-    def afficher_html(self):
-        chemin, _ = QFileDialog.getOpenFileName(self, "Sélectionner un fichier HTML", "", "HTML (*.html)")
-        if chemin:
-            vue_html = QWebEngineView()
-            vue_html.setHtml(open(chemin, 'r', encoding='utf-8').read())
-            index = self.tabs.addTab(vue_html, f"Aperçu: {os.path.basename(chemin)}")
-            self.tabs.setCurrentWidget(vue_html)
-            self.file_watcher.addPath(chemin)  # Add file to watcher
-
-    def recharger_html(self, chemin):
-        for i in range(self.tabs.count()):
-            widget = self.tabs.widget(i)
-            if isinstance(widget, QWebEngineView):
-                widget.setHtml(open(chemin, 'r', encoding='utf-8').read())
-                break
 
 
 if __name__ == '__main__':
