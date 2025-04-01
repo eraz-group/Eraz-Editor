@@ -1,3 +1,4 @@
+
 import sys
 import os
 import subprocess
@@ -228,6 +229,20 @@ class EditeurCode(QMainWindow):
             self.fermer_onglet(self.tabs.currentIndex())
         elif command == ":q":
             self.fermer_onglet(self.tabs.currentIndex())
+        elif command == ":run":
+            self.sauvegarder_fichier()
+            path = self.get_current_file_name()
+            if path and path.endswith(".py"):
+                result = subprocess.run([sys.executable, path], capture_output=True, text=True)
+                output = result.stdout + '\n' + result.stderr
+                self.terminal.clear()
+                self.terminal.appendPlainText(output)
+            elif path and path.endswith(".html"):
+                import webbrowser
+                webbrowser.open(f"file://{os.path.abspath(path)}")
+                self.terminal.appendPlainText(f"Fichier HTML ouvert dans le navigateur : {path}")
+            else:
+                QMessageBox.warning(self, "Erreur", "Exécution uniquement pour les fichiers Python ou HTML.")
         elif command.startswith(":gt"):
             try:
                 line_number = int(command[3:])
@@ -254,6 +269,50 @@ class EditeurCode(QMainWindow):
                 msg_box.exec()
             else:
                 QMessageBox.warning(self, "Erreur", "Linting uniquement pris en charge pour les fichiers Python.")
+        elif command == ":rename":
+            index = self.file_explorer.currentIndex()
+            if index.isValid():
+                old_path = self.file_model.filePath(index)
+                new_path, _ = QFileDialog.getSaveFileName(self, "Renommer", old_path)
+                if new_path:
+                    try:
+                        os.rename(old_path, new_path)
+                        self.file_model.refresh()
+                    except Exception as e:
+                        QMessageBox.warning(self, "Erreur", str(e))
+        elif command == ":delete":
+            index = self.file_explorer.currentIndex()
+            if index.isValid():
+                path = self.file_model.filePath(index)
+                try:
+                    if os.path.isfile(path):
+                        os.remove(path)
+                    elif os.path.isdir(path):
+                        import shutil
+                        shutil.rmtree(path)
+                    self.file_model.refresh()
+                except Exception as e:
+                    QMessageBox.warning(self, "Erreur", str(e))
+        elif command == ":newfile":
+            dossier = self.file_model.rootDirectory().absolutePath()
+            chemin, _ = QFileDialog.getSaveFileName(self, "Nouveau fichier", dossier)
+            if chemin:
+                with open(chemin, 'w', encoding='utf-8') as f:
+                    pass
+                self.file_model.refresh()
+        elif command == ":newfolder":
+            dossier = self.file_model.rootDirectory().absolutePath()
+            nom = QFileDialog.getExistingDirectory(self, "Nouveau dossier", dossier)
+            if nom:
+                try:
+                    os.makedirs(nom, exist_ok=True)
+                    self.file_model.refresh()
+                except Exception as e:
+                    QMessageBox.warning(self, "Erreur", str(e))
+
+
+
+
 
     def run_flake8(self, file_path):
         disabled_rules = set()

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eraz Editor Documentation</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      background-color: #f6f8fa;
+      color: #24292f;
+    }
+    header {
+      background-color: #24292f;
+      color: white;
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    header h1 {
+      font-size: 1.4rem;
+      margin: 0;
+    }
+    .lang-switch {
+      background: #444;
+      color: white;
+      border: none;
+      padding: 0.3rem 0.6rem;
+      font-size: 1rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    main {
+      display: flex;
+      height: calc(100vh - 60px);
+    }
+    nav {
+      width: 260px;
+      background-color: #f0f0f0;
+      padding: 1rem;
+      border-right: 1px solid #ddd;
+      overflow-y: auto;
+    }
+    nav h2 {
+      font-size: 1.2rem;
+      margin-top: 0;
+    }
+    nav ul {
+      list-style: none;
+      padding-left: 0;
+    }
+    nav li {
+      margin-bottom: 0.5rem;
+    }
+    nav a {
+      color: #0969da;
+      text-decoration: none;
+    }
+    nav a:hover {
+      text-decoration: underline;
+    }
+    section {
+      flex: 1;
+      padding: 2rem;
+      overflow-y: auto;
+    }
+    footer {
+      text-align: center;
+      font-size: 0.9rem;
+      padding: 1rem;
+      background-color: #f6f8fa;
+      border-top: 1px solid #ddd;
+    }
+    h1 {
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 0.3rem;
+    }
+    .fr { display: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>📘 Eraz Editor Documentation</h1>
+    <select class="lang-switch" onchange="changeLang(this.value)">
+      <option value="en">English</option>
+      <option value="fr">Français</option>
+    </select>
+  </header>
+  <main>
+    <nav>
+      <h2>Chapitres / Chapters</h2>
+      <ul>
+        <li><a href="#intro">Introduction</a></li>
+        <li><a href="#install">Installation</a></li>
+        <li><a href="#features">Fonctionnalités / Features</a></li>
+        <li><a href="#commands">Commandes / Commands</a></li>
+        <li><a href="#shortcuts">Raccourcis / Shortcuts</a></li>
+        <li><a href="#credits">Crédits</a></li>
+      </ul>
+    </nav>
+    <section>
+      <h1 id="intro">📝 Introduction</h1>
+      <p class="en">Eraz Editor is a modern code editor with a sleek interface and many features for Python, HTML and more developers.</p>
+      <p class="fr">Eraz Editor est un éditeur de code moderne avec une interface élégante et de nombreuses fonctionnalités pour les développeurs Python, HTML et plus.</p>
+
+      <h1 id="install">💻 Installation</h1>
+      <p class="en">Clone the repository and run <code>python src/app.py</code>. Make sure PyQt6 and flake8 are installed.</p>
+      <p class="fr">Cloner le dépôt puis exécuter <code>python src/app.py</code>. Assurez-vous d'avoir installé PyQt6 et flake8.</p>
+
+      <h1 id="features">⚙️ Fonctionnalités / Features</h1>
+      <ul class="en">
+        <li>Elegant dark theme</li>
+        <li>File explorer</li>
+        <li>Built-in terminal</li>
+        <li>Custom commands</li>
+        <li>Syntax highlighting</li>
+        <li>Live linting</li>
+        <li>Execute .py and .html files</li>
+        <li>Create, rename, delete files</li>
+      </ul>
+      <ul class="fr">
+        <li>Thème sombre élégant</li>
+        <li>Explorateur de fichiers</li>
+        <li>Terminal intégré</li>
+        <li>Commandes personnalisées</li>
+        <li>Coloration syntaxique</li>
+        <li>Linting en direct</li>
+        <li>Exécution de fichiers .py et .html</li>
+        <li>Création, renommage, suppression de fichiers</li>
+      </ul>
+
+      <h1 id="commands">⌨️ Commandes / Commands</h1>
+      <ul class="en">
+        <li><code>:w</code> — Save</li>
+        <li><code>:q</code> — Close tab</li>
+        <li><code>:wq</code> — Save and close</li>
+        <li><code>:dd</code> — Delete line</li>
+        <li><code>:gtN</code> — Go to line N</li>
+        <li><code>:lint</code> — Run flake8 lint</li>
+        <li><code>:run</code> — Run current file</li>
+        <li><code>:rename</code>, <code>:delete</code>, <code>:newfile</code>, <code>:newfolder</code> — File management</li>
+      </ul>
+      <ul class="fr">
+        <li><code>:w</code> — Sauvegarder</li>
+        <li><code>:q</code> — Fermer l'onglet</li>
+        <li><code>:wq</code> — Sauvegarder et fermer</li>
+        <li><code>:dd</code> — Supprimer ligne</li>
+        <li><code>:gtN</code> — Aller à la ligne N</li>
+        <li><code>:lint</code> — Vérifier les erreurs</li>
+        <li><code>:run</code> — Exécuter le fichier actif</li>
+        <li><code>:rename</code>, <code>:delete</code>, <code>:newfile</code>, <code>:newfolder</code> — Gestion des fichiers</li>
+      </ul>
+
+      <h1 id="shortcuts">⚡ Raccourcis / Shortcuts</h1>
+      <ul class="en">
+        <li><code>Ctrl+O</code> — Open file</li>
+        <li><code>Ctrl+N</code> — New file</li>
+        <li><code>Ctrl+D</code> — Open folder</li>
+        <li><code>Ctrl+S</code> — Save file</li>
+        <li><code>Esc</code> — Command mode</li>
+      </ul>
+      <ul class="fr">
+        <li><code>Ctrl+O</code> — Ouvrir fichier</li>
+        <li><code>Ctrl+N</code> — Nouveau fichier</li>
+        <li><code>Ctrl+D</code> — Ouvrir dossier</li>
+        <li><code>Ctrl+S</code> — Sauvegarder fichier</li>
+        <li><code>Esc</code> — Mode commande</li>
+      </ul>
+
+      <h1 id="credits">📎 Crédits</h1>
+      <p class="en">This software is designed by Eraz Group.</p>
+      <p class="fr">Ce logiciel est conçu par le Eraz Group.</p>
+    </section>
+  </main>
+  <footer>
+    &copy; 2025 Eraz Group — All rights reserved / Tous droits réservés
+  </footer>
+  <script>
+    function changeLang(lang) {
+      document.querySelectorAll('.en, .fr').forEach(el => {
+        el.style.display = 'none';
+      });
+      document.querySelectorAll('.' + lang).forEach(el => {
+        el.style.display = 'block';
+      });
+    }
+    changeLang('en');
+  </script>
+</body>
+</html>
