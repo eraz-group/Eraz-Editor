@@ -123,8 +123,6 @@ class EditorWithLines(QPlainTextEdit):
 class EditeurCode(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.windowTitle = "Eraz Editor Professional"
-        self.setWindowFlags(Qt.WindowType.Window)
         self.setWindowTitle("Eraz Editor Professional")
         self.setGeometry(100, 100, 1400, 900)
 
@@ -164,6 +162,22 @@ class EditeurCode(QMainWindow):
         right_widget.setLayout(right_layout)
         self.splitter.addWidget(right_widget)
 
+        # Add the command bar at the bottom of the main window
+        self.command_bar = QLineEdit(self)
+        self.command_bar.setPlaceholderText("Enter command")
+        self.command_bar.setStyleSheet("background-color: #252526; color: #dcdcdc; border: none; padding: 5px;")
+        self.command_bar.returnPressed.connect(self.execute_command_from_bar)
+
+        # Create a main layout to include the splitter and the command bar
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(self.splitter)
+        main_layout.addWidget(self.command_bar)
+
+        # Create a central widget to hold the main layout
+        central_widget = QWidget()
+        central_widget.setLayout(main_layout)
+        self.setCentralWidget(central_widget)
+
         menu = self.menuBar()
         fichier_menu = menu.addMenu("Fichier")
 
@@ -188,8 +202,14 @@ class EditeurCode(QMainWindow):
         fichier_menu.addAction(sauvegarder_action)
 
         self.dossier_actuel = ""
-
         self.tab_data = {}
+
+    def execute_command_from_bar(self):
+        """Handle commands entered in the command bar."""
+        command = self.command_bar.text().strip()
+        self.command_bar.clear()
+        if command:
+            self.execute_command(command)
 
     def execute_command(self, command):
         current_editor = self.tabs.currentWidget()
