@@ -268,6 +268,8 @@ output)
             # Add the --ignore option with the disabled rules
             flake8_command.append(f"--ignore={','.join(disabled_rules)}")
 
+        print(flake8_command)
+
         # Run flake8
         result = subprocess.run(
             flake8_command,
