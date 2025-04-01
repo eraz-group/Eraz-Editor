@@ -1,124 +1,111 @@
 import sys
 import os
 import subprocess
+import re
 
-from PyQt6.QtCore import Qt, QDir, QRect, QPropertyAnimation
-from PyQt6.QtGui import QFileSystemModel, QKeySequence, QPainter, QColor, QAction
+from PyQt6.QtCore import Qt, QDir, QRect, QPropertyAnimation, QTimer
+from PyQt6.QtGui import QFileSystemModel, QKeySequence, QPainter, QColor, QAction, QTextCharFormat, QSyntaxHighlighter, QTextCursor
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QPlainTextEdit, QTabWidget,
     QSplitter, QMessageBox, QVBoxLayout, QWidget, QTreeView, QLineEdit, QTextEdit,
     QGraphicsDropShadowEffect
 )
 
-from terminal import TerminalWidget  # Assure toi que ce module existe
+from terminal import TerminalWidget
 
-class NumberBar(QWidget):
-    def __init__(self, editor):
-        super().__init__(editor)
-        self.editor = editor
-        self.editor.blockCountChanged.connect(self.updateWidth)
-        self.editor.updateRequest.connect(self.updateContents)
-        self.updateWidth()
+class PythonHighlighter(QSyntaxHighlighter):
+    def __init__(self, document):
+        super().__init__(document)
+        self.highlighting_rules = []
 
-    def updateWidth(self):
-        width = self.fontMetrics().horizontalAdvance(str(self.editor.blockCount())) + 20
-        if self.width() != width:
-            self.setFixedWidth(width)
+        keyword_format = QTextCharFormat()
+        keyword_format.setForeground(QColor("#569CD6"))
+        keyword_format.setFontWeight(75)  # 75 = QFont.Bold
+        keywords = [
+            'def', 'class', 'if', 'elif', 'else', 'while', 'for', 'try', 'except', 'finally',
+            'with', 'as', 'return', 'import', 'from', 'pass', 'break', 'continue', 'in', 'not', 'and', 'or', 'is', 'lambda'
+        ]
+        for word in keywords:
+            pattern = re.compile(rf'\b{word}\b')
+            self.highlighting_rules.append((pattern, keyword_format))
 
-    def updateContents(self, rect, dy):
-        if dy:
-            self.scroll(0, dy)
-        else:
-            self.update(0, rect.y(), self.width(), rect.height())
+        string_format = QTextCharFormat()
+        string_format.setForeground(QColor("#CE9178"))
+        self.highlighting_rules.append((re.compile(r'(\".*?\"|\'.*?\')'), string_format))
 
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.fillRect(event.rect(), QColor("#2d2d30"))
-        block = self.editor.firstVisibleBlock()
-        blockNumber = block.blockNumber()
-        top = self.editor.blockBoundingGeometry(block).translated(self.editor.contentOffset()).top()
-        bottom = top + self.editor.blockBoundingRect(block).height()
+        comment_format = QTextCharFormat()
+        comment_format.setForeground(QColor("#6A9955"))
+        self.highlighting_rules.append((re.compile(r'#.*'), comment_format))
 
-        while block.isValid() and top <= event.rect().bottom():
-            if block.isVisible() and bottom >= event.rect().top():
-                painter.setPen(QColor("#858585"))
-                painter.drawText(0, int(top), self.width() - 10, self.fontMetrics().height(), Qt.AlignmentFlag.AlignRight, str(blockNumber + 1))
-            block = block.next()
-            top = bottom
-            bottom = top + self.editor.blockBoundingRect(block).height()
-            blockNumber += 1
+    def highlightBlock(self, text):
+        for pattern, fmt in self.highlighting_rules:
+            for match in pattern.finditer(text):
+                start, end = match.span()
+                self.setFormat(start, end - start, fmt)
 
-class EditorWithLines(QPlainTextEdit):
+class LiveLintingMixin:
+    def setup_linting(self):
+        self.lint_timer = QTimer(self)
+        self.lint_timer.setInterval(1000)
+        self.lint_timer.timeout.connect(self.run_linting)
+        self.textChanged.connect(self.lint_timer.start)
+        self.error_format = QTextCharFormat()
+        self.error_format.setUnderlineColor(QColor("red"))
+        self.error_format.setUnderlineStyle(QTextCharFormat.UnderlineStyle.SpellCheckUnderline)
+
+    def run_linting(self):
+        self.lint_timer.stop()
+        code = self.toPlainText()
+
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".py", mode="w", encoding="utf-8") as tmp:
+            tmp.write(code)
+            tmp_path = tmp.name
+
+        try:
+            result = subprocess.run([
+                "flake8", tmp_path, "--ignore=E501,E302,E305,E701"
+            ], capture_output=True, text=True)
+
+            self.clear_lint_marks()
+
+            if result.stdout:
+                for line in result.stdout.splitlines():
+                    parts = line.split(":")
+                    if len(parts) >= 2:
+                        try:
+                            lineno = int(parts[1]) - 1
+                            cursor = QTextCursor(self.document().findBlockByNumber(lineno))
+                            cursor.movePosition(QTextCursor.MoveOperation.EndOfBlock)
+                            cursor.movePosition(QTextCursor.MoveOperation.StartOfBlock, QTextCursor.MoveMode.KeepAnchor)
+                            cursor.setCharFormat(self.error_format)
+                        except ValueError:
+                            continue
+        except Exception:
+            pass
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+    def clear_lint_marks(self):
+        cursor = QTextCursor(self.document())
+        cursor.select(QTextCursor.SelectionType.Document)
+        cursor.setCharFormat(QTextCharFormat())
+
+class EditorWithLines(QPlainTextEdit, LiveLintingMixin):
     def __init__(self, parent, editor_code):
         super().__init__(parent)
         self.editor_code = editor_code
-        self.number_bar = NumberBar(self)
-        self.setStyleSheet("""
-            background-color: #1e1e1e;
-            color: #dcdcdc;
-            font-family: Consolas;
-            font-size: 14px;
-            border-radius: 6px;
-            padding: 4px;
-        """)
-        self.update_margins()
-        self.command_mode = False
+        self.setStyleSheet("background-color: #1e1e1e; color: #dcdcdc; font-family: Consolas; font-size: 14px; border-radius: 6px; padding: 4px;")
+        self.setTabStopDistance(4 * self.fontMetrics().horizontalAdvance(' '))
 
-        self.command_input = QLineEdit(self)
-        self.command_input.setPlaceholderText("Enter command")
-        self.command_input.setStyleSheet("""
-            background-color: #252526;
-            color: #dcdcdc;
-            border: none;
-            padding: 5px;
-            border-radius: 5px;
-        """)
-        self.command_input.hide()
-        self.command_input.returnPressed.connect(self.execute_command_from_input)
-
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(15)
-        shadow.setXOffset(0)
-        shadow.setYOffset(3)
-        shadow.setColor(QColor(0, 0, 0, 160))
-        self.setGraphicsEffect(shadow)
+        self.highlighter = PythonHighlighter(self.document())
+        self.setup_linting()
 
         self.file_extension = None
 
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        cr = self.contentsRect()
-        self.number_bar.setGeometry(QRect(cr.left(), cr.top(), self.number_bar.width(), cr.height()))
-        self.update_margins()
-        self.command_input.setGeometry(0, self.height() - 30, self.width(), 30)
-
-    def update_margins(self):
-        self.setViewportMargins(self.number_bar.width(), 0, 0, 0)
-
-    def keyPressEvent(self, event):
-        if self.command_mode:
-            if event.key() == Qt.Key.Key_Escape:
-                self.command_mode = False
-                self.command_input.hide()
-            else:
-                super().keyPressEvent(event)
-        else:
-            if event.key() == Qt.Key.Key_Escape:
-                self.command_mode = True
-                self.command_input.show()
-                self.command_input.setFocus()
-            else:
-                super().keyPressEvent(event)
-
-    def execute_command_from_input(self):
-        command = self.command_input.text()
-        self.command_input.clear()
-        self.command_input.hide()
-        self.command_mode = False
-        self.editor_code.execute_command(command)
-
-    def set_file_extension(self, extension):
-        self.file_extension = extension
+    def set_file_extension(self, ext):
+        self.file_extension = ext
 
     def get_file_extension(self):
         return self.file_extension
@@ -241,6 +228,20 @@ class EditeurCode(QMainWindow):
             self.fermer_onglet(self.tabs.currentIndex())
         elif command == ":q":
             self.fermer_onglet(self.tabs.currentIndex())
+        elif command == ":run":
+            self.sauvegarder_fichier()
+            path = self.get_current_file_name()
+            if path and path.endswith(".py"):
+                result = subprocess.run([sys.executable, path], capture_output=True, text=True)
+                output = result.stdout + '\n' + result.stderr
+                self.terminal.clear()
+                self.terminal.appendPlainText(output)
+            elif path and path.endswith(".html"):
+                import webbrowser
+                webbrowser.open(f"file://{os.path.abspath(path)}")
+                self.terminal.appendPlainText(f"Fichier HTML ouvert dans le navigateur : {path}")
+            else:
+                QMessageBox.warning(self, "Erreur", "Exécution uniquement pour les fichiers Python ou HTML.")
         elif command.startswith(":gt"):
             try:
                 line_number = int(command[3:])
@@ -267,6 +268,50 @@ class EditeurCode(QMainWindow):
                 msg_box.exec()
             else:
                 QMessageBox.warning(self, "Erreur", "Linting uniquement pris en charge pour les fichiers Python.")
+        elif command == ":rename":
+            index = self.file_explorer.currentIndex()
+            if index.isValid():
+                old_path = self.file_model.filePath(index)
+                new_path, _ = QFileDialog.getSaveFileName(self, "Renommer", old_path)
+                if new_path:
+                    try:
+                        os.rename(old_path, new_path)
+                        self.file_model.refresh()
+                    except Exception as e:
+                        QMessageBox.warning(self, "Erreur", str(e))
+        elif command == ":delete":
+            index = self.file_explorer.currentIndex()
+            if index.isValid():
+                path = self.file_model.filePath(index)
+                try:
+                    if os.path.isfile(path):
+                        os.remove(path)
+                    elif os.path.isdir(path):
+                        import shutil
+                        shutil.rmtree(path)
+                    self.file_model.refresh()
+                except Exception as e:
+                    QMessageBox.warning(self, "Erreur", str(e))
+        elif command == ":newfile":
+            dossier = self.file_model.rootDirectory().absolutePath()
+            chemin, _ = QFileDialog.getSaveFileName(self, "Nouveau fichier", dossier)
+            if chemin:
+                with open(chemin, 'w', encoding='utf-8') as f:
+                    pass
+                self.file_model.refresh()
+        elif command == ":newfolder":
+            dossier = self.file_model.rootDirectory().absolutePath()
+            nom = QFileDialog.getExistingDirectory(self, "Nouveau dossier", dossier)
+            if nom:
+                try:
+                    os.makedirs(nom, exist_ok=True)
+                    self.file_model.refresh()
+                except Exception as e:
+                    QMessageBox.warning(self, "Erreur", str(e))
+
+
+
+
 
     def run_flake8(self, file_path):
         disabled_rules = set()
@@ -277,7 +322,7 @@ class EditeurCode(QMainWindow):
                     if len(parts) > 2:
                         disabled_rules.update(parts[2:])
 
-        flake8_command = ["flake8", file_path]
+        flake8_command = ["flake8", "--ignore=E501,E302,E305,E701", file_path]
         if disabled_rules:
             flake8_command.append(f"--ignore={','.join(disabled_rules)}")
 
