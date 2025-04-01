@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QDir, QRect
 from PyQt6.QtGui import QFileSystemModel, QAction, QKeySequence, QPainter, QColor
 import subprocess
+from terminal import TerminalWidget  # Assuming terminal.py is in the src directory
 
 
 class NumberBar(QWidget):
@@ -122,6 +123,8 @@ class EditorWithLines(QPlainTextEdit):
 class EditeurCode(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.windowTitle = "Eraz Editor Professional"
+        self.setWindowFlags(Qt.WindowType.Window)
         self.setWindowTitle("Eraz Editor Professional")
         self.setGeometry(100, 100, 1400, 900)
 
@@ -146,10 +149,17 @@ class EditeurCode(QMainWindow):
         right_widget = QWidget()
         right_layout = QVBoxLayout()
 
+        # Add the tabs to the top of the right layout
         self.tabs = QTabWidget()
         self.tabs.setTabsClosable(True)
         self.tabs.tabCloseRequested.connect(self.fermer_onglet)
         right_layout.addWidget(self.tabs)
+
+        # Add the terminal to the bottom of the right layout
+        self.terminal = TerminalWidget()
+        self.terminal.setStyleSheet("background-color: #252526; color: #dcdcdc;")
+        self.terminal.setFixedHeight(200)  # Set the terminal height to 200 pixels
+        right_layout.addWidget(self.terminal)
 
         right_widget.setLayout(right_layout)
         self.splitter.addWidget(right_widget)
@@ -221,7 +231,8 @@ class EditeurCode(QMainWindow):
 
                 # Create a scrollable text area
                 text_edit = QTextEdit()
-                text_edit.setPlainText(output)
+                text_edit.setPlainText(
+output)
                 text_edit.setReadOnly(True)
                 text_edit.setMinimumSize(600, 400)  # Set a reasonable size
 
@@ -230,7 +241,6 @@ class EditeurCode(QMainWindow):
                 msg_box.exec()
             else:
                 QMessageBox.warning(self, "Erreur", "Linting uniquement pris en charge pour les fichiers Python.")
-
 
     def run_flake8(self, file_path):
         """Run flake8 on the given file, excluding rules specified in #lint disable comments."""
