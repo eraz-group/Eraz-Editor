@@ -90,19 +90,7 @@ class EditorWithLines(QPlainTextEdit):
         self.setViewportMargins(self.number_bar.width(), 0, 0, 0)
 
     def keyPressEvent(self, event):
-        if self.command_mode:
-            if event.key() == Qt.Key.Key_Escape:  # Exit command mode
-                self.command_mode = False
-                self.command_input.hide()
-            else:
-                super().keyPressEvent(event)
-        else:
-            if event.key() == Qt.Key.Key_Escape:  # Enter command mode
-                self.command_mode = True
-                self.command_input.show()
-                self.command_input.setFocus()
-            else:
-                super().keyPressEvent(event)
+        super().keyPressEvent(event)
 
     def execute_command_from_input(self):
         command = self.command_input.text()
