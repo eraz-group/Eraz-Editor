@@ -56,19 +56,13 @@ class LiveLintingMixin:
     def run_linting(self):
         self.lint_timer.stop()
         code = self.toPlainText()
-
-        import tempfile
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".py", mode="w", encoding="utf-8") as tmp:
-            tmp.write(code)
-            tmp_path = tmp.name
+        path = "temp_lint.py"
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(code)
 
         try:
-            result = subprocess.run([
-                "flake8", tmp_path, "--ignore=E501,E302,E305,E701"
-            ], capture_output=True, text=True)
-
+            result = subprocess.run(["flake8", path], capture_output=True, text=True)
             self.clear_lint_marks()
-
             if result.stdout:
                 for line in result.stdout.splitlines():
                     parts = line.split(":")
@@ -81,11 +75,8 @@ class LiveLintingMixin:
                             cursor.setCharFormat(self.error_format)
                         except ValueError:
                             continue
-        except Exception:
+        except Exception as e:
             pass
-        finally:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
 
     def clear_lint_marks(self):
         cursor = QTextCursor(self.document())
