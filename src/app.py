@@ -3,12 +3,11 @@ import os
 import subprocess
 import re
 
-from PyQt6.QtCore import Qt, QDir, QRect, QPropertyAnimation, QTimer
-from PyQt6.QtGui import QFileSystemModel, QKeySequence, QPainter, QColor, QAction, QTextCharFormat, QSyntaxHighlighter, QTextCursor
+from PyQt6.QtCore import Qt, QDir, QTimer
+from PyQt6.QtGui import QFileSystemModel, QKeySequence, QColor, QAction, QTextCharFormat, QSyntaxHighlighter, QTextCursor
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QPlainTextEdit, QTabWidget,
     QSplitter, QMessageBox, QVBoxLayout, QWidget, QTreeView, QLineEdit, QTextEdit,
-    QGraphicsDropShadowEffect
 )
 
 from terminal import TerminalWidget
@@ -308,10 +307,6 @@ class EditeurCode(QMainWindow):
                     self.file_model.refresh()
                 except Exception as e:
                     QMessageBox.warning(self, "Erreur", str(e))
-
-
-
-
 
     def run_flake8(self, file_path):
         disabled_rules = set()

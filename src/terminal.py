@@ -6,17 +6,17 @@ class TerminalWidget(QWidget):
     def __init__(self):
         super().__init__()
         layout = QVBoxLayout()
-        
+
         self.terminal_output = QPlainTextEdit()
         self.terminal_output.setReadOnly(True)
         layout.addWidget(self.terminal_output)
-        
+
         self.input_line = QLineEdit()
         self.input_line.returnPressed.connect(self.execute_command)
         layout.addWidget(self.input_line)
-        
+
         self.setLayout(layout)
-        
+
         # Start the terminal process
         self.process = QProcess()
         shell = "cmd.exe" if os.name == "nt" else "bash"
